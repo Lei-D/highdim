@@ -1,0 +1,642 @@
+---
+title: "Simulation plots"
+author: "Lei"
+date: "Jan, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=8, fig.height=2.5, cache=TRUE, autodep = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(grid)
+library(gridExtra)
+library(scales)
+
+th = theme_minimal() + theme(
+  legend.title = element_blank(),
+  legend.position = 'bottom',
+  strip.background = element_rect(fill='gray70',color='gray70'),
+  text = element_text(size=12,family='Palatino')
+)
+```
+
+# row norm
+```{r}
+# plot
+load("AML.RData")
+i = 3
+p = nrow(AML$row.l2norm)
+dat.AML = data.frame(row = c(1:p, 1:p),
+                       type = c(rep("L2 norm", p), rep("Threshold", p)),
+                       value = c(sort(AML$row.l2norm[,i], decreasing = TRUE), rep(AML$threshold[i], p)))
+ggplot(data = dat.AML, aes(x = row, y = value, colour = type)) + 
+  geom_line(size = 2) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(2, 6)]) + 
+  # theme(text = element_text(size=18,family='Palatino'),
+  #       legend.position="none") +
+  xlab(paste("Row Index")) +
+  ylab("") +
+  th +
+  theme(legend.position = c(0.9,0.9),
+        text = element_text(size=16),
+        # panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"))
+
+ggsave("AML_row_norm.pdf", width = 6, height = 4)
+```
+
+
+# Simulation 1
+
+```{r}
+clean_up = function(cols=c(1:4,8:10,12,13), ids=1:50){
+  dat = as.data.frame(rbind(MSE,COV.PRECISION,COV.RECALL,NCOV)[,cols])
+  names(dat) = c('SuffPCR','Oracle','Ridge','Lasso','Adaptive1',
+                 'AdaLasso','Mean','ElasticNet','SPC',
+                 'AIMER','pclasso','ISPCA','FPS')[cols]
+  dat$metric = rep(c('MSE','PRECISION','RECALL','NCOV'),each=length(ids))
+  dat$ids = rep(ids,times=4)
+  dat = gather(dat, 'method','value',-ids,-metric)
+  dat
+}
+```
+
+```{r}
+load('regression1.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.02)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.01,.02), labels=c('0','0.01','0.02')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.25), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("sim1.pdf", p, width = 8, height = 2.5)
+```
+
+
+
+# Simulation 2
+
+```{r}
+load('regression7.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10() +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.5)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.25,.5), labels=c('0','0.25','0.5')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.25), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("sim2.pdf", p, width = 8, height = 2.5)
+```
+
+
+
+# Simulation 3
+```{r}
+load('regression4.RData')
+d1 = clean_up() %>% filter(metric=='MSE')
+d1$SNRy = d1$SNRx = 1
+load('regression3.RData')
+d2 = clean_up() %>% filter(metric=='MSE')
+d2$SNRx=1
+d2$SNRy=5
+load('regression2.RData')
+d3 = clean_up() %>% filter(metric=='MSE')
+d3$SNRx=5
+d3$SNRy=1
+load('regression1.RData')
+d4 = clean_up() %>% filter(metric=='MSE')
+d4$SNRy = d4$SNRx = 5
+dat = rbind(d1,d2,d3,d4)
+dat$method = factor(dat$method,
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet',
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+
+# plot
+gg = dat %>% ggplot(aes(x=method, y=value, color=method, fill=method)) +
+  geom_boxplot() +
+  facet_wrap(.~ SNRy + SNRx, 
+             labeller = label_both,
+             # labeller = label_bquote(c("SNRy" = "'SNR'[y] == .(SNRy)",
+                                       # "SNRx" = "'SNR'[x] == .(SNRx)")),
+             # labeller = label_bquote(cols=SNR[X]==.(SNRx)
+                                     # , rows=SNR[Y]==.(SNRy)),
+             nrow = 1) +
+  coord_flip() +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2)]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) + th +
+  ylab('') +  th +
+  theme(legend.position = 'none') +
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+gg
+
+ggsave("sim3.pdf", width = 8, height = 3)
+```
+
+
+
+
+# Simulation 4
+```{r}
+load('regression6.RData')
+d1 = clean_up() %>% filter(metric=='MSE' & method=='SuffPCR')
+d1$method = "SuffPCR5"
+load('regression5.RData')
+d2 = clean_up() %>% filter(metric=='MSE' & method=='SuffPCR')
+d2$method = 'SuffPCR1'
+load('regression1.RData')
+d3 = clean_up() %>% filter(metric=='MSE' & method=='SuffPCR')
+d3$method = 'SuffPCR3'
+d4 = clean_up() %>% filter(metric=='MSE' & method!='SuffPCR')
+dat = rbind(d1,d2,d3,d4)
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle',
+                               'SuffPCR5', 'SuffPCR3', 'SuffPCR1'))
+
+# plot
+dat %>% 
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  coord_flip() + 
+  scale_fill_manual(values = viridis::viridis_pal()(10)[c(1,3,4:9,2,10,3)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(1,3,4:9,2,10,3)]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) + th +
+  ylab('') +
+  theme(legend.position = 'none', text = element_text(size=20, family='Palatino')) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+
+ggsave("sim4.pdf", width = 8, height = 5) 
+```
+
+
+# Simulation 5
+```{r}
+load('classification1.RData')
+dat = as.data.frame(ACCURACY[,c(1:4, 6)])
+names(dat) = c('SuffPCR','Oracle','LogisticRidge','LogisticLasso','FPS')
+dat$metric = 'classification accuracy'
+dat$ids = 1:50
+dat = gather(dat, 'method','value',-ids,-metric)
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'LogisticRidge', 
+                               'LogisticLasso', 'Oracle', 'SuffPCR'))
+
+# plot
+dat %>% 
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  coord_flip() + 
+  scale_fill_manual(values = viridis::viridis_pal()(10)[c(1,7:10)]) + 
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(1,7:10)]) +
+  ylab('') +
+  th +
+  theme(legend.position = 'none', text = element_text(size=20, family='Palatino')) + 
+  xlab('') + ylab('') + 
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+
+ggsave("sim5.pdf", width = 8, height = 3) 
+```
+
+
+
+
+# NSCLC
+```{r}
+load('semi_NSCLC1.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.02)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.01,.02), labels=c('0','0.01','0.02')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.55), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("semi_NSCLC1.pdf", p, width = 8, height = 2.5)
+```
+
+
+```{r}
+load('semi_NSCLC2.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.02)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.01,.02), labels=c('0','0.01','0.02')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.25), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("semi_NSCLC2.pdf", p, width = 8, height = 2.5)
+```
+
+
+```{r}
+load('semi_NSCLC3.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.02)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.01,.02), labels=c('0','0.01','0.02')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.25), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("semi_NSCLC3.pdf", p, width = 8, height = 2.5)
+```
+
+
+```{r}
+load('semi_NSCLC4.RData')
+dat = clean_up()
+dat$method = factor(dat$method, 
+                    levels = c('FPS', 'ISPCA', 'AIMER', 'SPC', 'ElasticNet', 
+                               'Ridge', 'Lasso', 'Oracle', 'SuffPCR'))
+flab = c(MSE='MSE',NCOV='# Features Selected',
+         PRECISION='Precision', RECALL='Recall')
+ROC.avg = aggregate(cbind(TPR, FPR) ~ Method + Index, data = ROC, mean)
+ROC.avg$Method = factor(ROC.avg$Method,
+                        levels = c('AIMER', 'SPC', 'ElasticNet',
+                                   'Lasso', 'SuffPCR'))
+ROC.avg$Type = "ROC Curve"
+
+# plot
+p1 = dat %>% filter(metric %in% c('MSE','NCOV')) %>%
+  ggplot(aes(x=method, y=value, color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow=1,labeller = labeller(metric=flab),
+             scales = 'free_x') + 
+  coord_flip() + 
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,7:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-2]) +
+  scale_y_log10(labels=trans_format("log10", math_format(10^.x))) +
+  th +
+  ylab('') +
+  theme(legend.position = 'none', plot.margin = margin()) + 
+  xlab('') + ylab('') +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p2 = dat %>% filter(metric %in% c('PRECISION','RECALL')) %>%
+  ggplot(aes(x=method,y=value,color=method, fill=method)) + 
+  geom_boxplot() +
+  facet_wrap(~metric, nrow = 1,labeller = labeller(metric=flab)) +
+  coord_flip() +
+  #scale_fill_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) + 
+  #scale_color_manual(values = RColorBrewer::brewer.pal(9,'Set1')[c(3,6:4,8,2,1)]) +
+  scale_fill_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[-c(2,4)]) +
+  scale_y_continuous(breaks=c(0,.5,1), labels=c('0','0.5','1')) +
+  th + xlab('') + ylab('') +
+  theme(legend.position = 'none',
+        axis.text.y = element_blank(),
+        plot.margin = margin(l=-rel(10),r=rel(10))) +
+  stat_summary(geom="crossbar",color="gray70",fatten=1,
+               fun.data = function(x){
+                 c(y=median(x), ymin=median(x),ymax=median(x))
+               })
+p3 = ggplot(data = ROC.avg, aes(x = FPR, y = TPR, colour = Method)) + 
+  facet_wrap(~Type) +
+  geom_line(size = 1) + 
+  coord_cartesian(xlim=c(0,.02)) +
+  scale_color_manual(values = viridis::viridis_pal()(10)[c(4:6, 8, 10)]) +
+  scale_x_continuous(breaks=c(0,.01,.02), labels=c('0','0.01','0.02')) +
+scale_y_continuous(breaks=c(0,0.5,1), labels=c('0','0.5','1')) +
+  th +
+  theme(legend.position = c(0.8,0.25), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.text=element_text(size=8),
+        # text = element_text(size=8),
+        # panel.grid.minor = element_blank(),
+        plot.margin = margin(l=-rel(15),r=rel(10))) +
+  ylab("") +
+  xlab("") +
+  guides(colour = guide_legend(reverse=T))
+p = grid.arrange(p1, p2, p3, ncol=3, widths=c(1.25, 1, 0.6))
+p
+ggsave("semi_NSCLC4.pdf", p, width = 8, height = 2.5)
+```
