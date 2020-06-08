@@ -8,7 +8,7 @@ library(psych) # for logistic function
 
 # this function compute sparsePC for classification
 sparsePC_class = function(Xtrain, Ytrain, Xvalidate, Yvalidate, Xtest, Ytest,
-                          d, nsol){
+                          d, nsol, screening = TRUE){
   n = nrow(Xtrain)
   p = ncol(Xtrain)
   
@@ -36,17 +36,19 @@ sparsePC_class = function(Xtrain, Ytrain, Xvalidate, Yvalidate, Xtest, Ytest,
   Betahat = matrix(NA, nrow = nsol, ncol = p)
   
   for (i in 1:nsol) {
-    l = sort(diag(approximate$projection[[i]]))
-    if (i == 1) {
-      t = max(l)
-    } else {
-      t = find_t(l)
+    if (screening == TRUE) {
+      l = sort(diag(approximate$projection[[i]]))
+      if (i == 1) {
+        t = max(l)
+      } else {
+        t = find_t(l)
+      }
+      
+      # set rows and columns that has small diagonal values to be 0
+      small = which(diag(approximate$projection[[i]]) <= t)
+      approximate$projection[[i]][small, ] = 0
+      approximate$projection[[i]][ ,small] = 0
     }
-    
-    # set rows and columns that has small diagonal values to be 0
-    small = which(diag(approximate$projection[[i]]) <= t)
-    approximate$projection[[i]][small, ] = 0
-    approximate$projection[[i]][ ,small] = 0
     
     if (all(approximate$projection[[i]] == 0) == F) {
       # decompose projection matrix

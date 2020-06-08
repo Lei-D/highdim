@@ -1,4 +1,5 @@
 library(glmnet)
+source("~/Desktop/Lei/AIMER2/github/sparsePC_class.R")
 
 # compare various models on simulation data
 compare_class_sim = function(Xtrain, Ytrain, Xvalidate, Yvalidate, Xtest, Ytest,
@@ -6,13 +7,13 @@ compare_class_sim = function(Xtrain, Ytrain, Xvalidate, Yvalidate, Xtest, Ytest,
   p = ncol(Xtrain)
   
   # output holder
-  sec = rep(NA, 5)
-  accuracy = rep(NA, 5)
-  ncov = rep(NA, 5)
-  cov.precision = rep(NA, 5)
-  cov.recall = rep(NA, 5)
+  sec = rep(NA, 6)
+  accuracy = rep(NA, 6)
+  ncov = rep(NA, 6)
+  cov.precision = rep(NA, 6)
+  cov.recall = rep(NA, 6)
   
-  # fps
+  # sparsePC
   t1 = proc.time()
   sparsePC.mod = sparsePC_class(Xtrain = Xtrain, Ytrain = Ytrain,
                                 Xvalidate = Xvalidate, Yvalidate = Yvalidate,
@@ -86,6 +87,21 @@ compare_class_sim = function(Xtrain, Ytrain, Xvalidate, Yvalidate, Xtest, Ytest,
   cov.precision[5] = 0
   cov.recall[5] = 0
   
+  # sparsePC without screening
+  t1 = proc.time()
+  sparsePC.mod = sparsePC_class(Xtrain = Xtrain, Ytrain = Ytrain,
+                                Xvalidate = Xvalidate, Yvalidate = Yvalidate,
+                                Xtest = Xtest, Ytest = Ytest,
+                                d = d, nsol = nsol, screening = FALSE)
+  t2 = proc.time()
+  sec[6] = t2[3]-t1[3]
+  best = which(sparsePC.mod$mse.validate==min(sparsePC.mod$mse.validate[sparsePC.mod$accuracy.validate==max(sparsePC.mod$accuracy.validate)]))
+  accuracy[6] = sparsePC.mod$accuracy.test[best]
+  ncov[6] = sum(sparsePC.mod$betahat[best,] != 0)
+  cov.precision[6] = sum(sparsePC.mod$betahat[best,1:s] != 0) / ncov[6]
+  cov.recall[6] = sum(sparsePC.mod$betahat[best,1:s] != 0) / s
+  
+  # store output
   output = list(sec = sec, accuracy = accuracy, ncov = ncov, 
                 cov.precision = cov.precision, 
                 cov.recall = cov.recall,

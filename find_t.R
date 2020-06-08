@@ -34,3 +34,35 @@ find_t = function(list){
   }
   return(t)
 }
+
+
+# return values for lambda
+compute_lambda = function(S, maxnvar, nsol, type){
+  maxoffdiag = sort(compute_maxoffdiag(S), decreasing = T)
+  lambda_max = maxoffdiag[1]
+  lambda_min = maxoffdiag[maxnvar]
+  # lambda_min = 0
+  if (type == "linear") {
+    lambda = seq(from = lambda_max, to = lambda_min, length.out = nsol)
+  } else if (type == "loglinear") {
+    lambda = lambda_min * log10(seq(1, 10, length.out = nsol)) + 
+      lambda_max * (1 - log10(seq(1, 10, length.out = nsol)))
+  }
+  return(lambda)
+}
+
+
+
+# return the maximum off diagnal absolute value in each row 
+compute_maxoffdiag = function(S){
+  # S is the input matrix which is symmetric
+  S = abs(S)
+  n = nrow(S)
+  out = rep(NA, n)
+  out[1] = max(S[1, 2:n])
+  for (i in 2:(n-1)) {
+    out[i] = max(max(S[i, 1:(i-1)]), max(S[i, (i+1):n]))
+  }
+  out[n] = max(S[n, 1:(n-1)])
+  return(out)
+}
