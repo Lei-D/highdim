@@ -1,0 +1,6 @@
+NLopt version 2.4.2 loaded
+Curl version 7.54.0 loaded.
+ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'java/1.7.0_51'
+r/3.6.0(24):ERROR:150: Module 'r/3.6.0' conflicts with the currently loaded module(s) 'r/3.4.4'
+r/3.6.0(24):ERROR:102: Tcl command execution failed: conflict $name
+
