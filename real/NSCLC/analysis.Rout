@@ -1,0 +1,42 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> source("~/Desktop/Lei/AIMER2/github/sparsePC_reg_real.R")
+Loading required package: Matrix
+> 
+> # read in data
+> load("~/Desktop/Lei/AIMER/NSCLC/rawdata/Chemores-miRNA-LVS-normalized.RData")
+> load("~/Desktop/Lei/AIMER/NSCLC/rawdata/Chemores-clindat-public-Apr2014.RData")
+> 
+> # condiser relapse time for patients who relapse
+> Xtot = t(mirdat)[chemores.clindat$Relapse01 == 1, ]
+> Xtot = scale(Xtot, center = T, scale = T)
+> Ytot = log(chemores.clindat$Relapse.time[which(chemores.clindat$Relapse01 == 1)] + 1)
+> 
+> # sparsePC without screening d = 1
+> sparsePC.mod1 = sparsePC_reg_real(X = Xtot, Y = Ytot,
++                        d = 3, nsol = 10, maxnvar = ncol(Xtot),
++                        screening = TRUE)
+> 
+> # save output
+> save(sparsePC.mod1, file = "~/Desktop/Lei/AIMER2/ISMB/real/NSCLC/sparsePC.RData")
+> 
+> 
+> 
+> proc.time()
+   user  system elapsed 
+ 34.165   0.564  34.769 
