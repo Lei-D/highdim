@@ -1,0 +1,48 @@
+
+R version 3.6.0 (2019-04-26) -- "Planting of a Tree"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> source("~/Desktop/Lei/AIMER2/github/sparsePC_reg_real.R")
+Loading required package: Matrix
+> 
+> # read in data
+> load("~/Desktop/Lei/AIMER/breastCancer3/rawdata/uppsala-U133A-50%.RData")
+> 
+> # transform covariates and response
+> Xtot = t(upp.x)
+> Xtot = scale(Xtot, center = T, scale = T)
+> Ytot = log(upp.clinical$survdth + 1)
+> 
+> # set lambda values
+> lambda.min = 0
+> lambda.max = 1
+> nlambda = 10
+> lambda = lambda.max * log10(seq(1, 10, length.out = nlambda)) + 
++   lambda.min * (1 - log10(seq(1, 10, length.out = nlambda)))
+> lambda = sort(lambda, decreasing = T)
+> 
+> # suffPCR
+> set.seed(8372)
+> suffPCR = sparsePC.reg.real.CV(X = Xtot, Y = Ytot, d = 3,
++                                lambda = lambda, Kfold = 5,
++                                maxnvar = ncol(Xtot),
++                                screening = TRUE)
+
+error: arma::memory::acquire(): out of memory
+Error in fps(S, ndim = d[k], ncomp = d[k], lambda = lambda, maxnvar = maxnvar,  : 
+  std::bad_alloc
+Calls: sparsePC.reg.real.CV -> sparsePC.reg.real -> fps
+Execution halted
